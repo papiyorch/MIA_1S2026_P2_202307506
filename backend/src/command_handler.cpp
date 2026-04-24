@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <ctime>
 #include <functional>
+#include <filesystem>
 #include <set>
 
 // Inicializar variables estáticas
@@ -175,6 +176,19 @@ std::string CommandHandler::cmdMkdisk(const std::map<std::string, std::string>& 
         fit = 'W';
     } else {
         return "Error: Fit no válido. Use BF, FF o WF.";
+    }
+    
+    try {
+        std::filesystem::path rutaC(path);
+        std::filesystem::path directorioPadre = rutaC.parent_path();
+        
+        // Si el directorio padre no está vacío y no existe físicamente en el SO
+        if (!directorioPadre.empty() && !std::filesystem::exists(directorioPadre)) {
+            std::filesystem::create_directories(directorioPadre);
+            // Opcional: std::cout << "Directorios creados exitosamente: " << directorioPadre << std::endl;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        return std::string("Error crítico al intentar crear las carpetas en el sistema: ") + e.what();
     }
     
     // Crear disco
@@ -2475,7 +2489,7 @@ std::string CommandHandler::cmdMkdir(const std::map<std::string, std::string>& p
         return "Error: No se pudo leer el superblock.";
     }
     
-    // PASO 2: Obtener el directorio padre correcto
+    // Obtener el directorio padre correcto
     int parentInode = 0;
     Inodo parentInoData;
     BlockFolder parentBlock;
@@ -2511,7 +2525,7 @@ std::string CommandHandler::cmdMkdir(const std::map<std::string, std::string>& p
         }
     }
     
-    // PASO 3: Verificar si la carpeta ya existe en el directorio padre
+    // Verificar si la carpeta ya existe en el directorio padre
     int startSlot = (parentInode == 0) ? 0 : 2;
     for (int i = 0; i < 4; i++) {
         if (parentBlock.b_content[i].b_inodo != 0) {
@@ -2576,7 +2590,7 @@ std::string CommandHandler::cmdMkdir(const std::map<std::string, std::string>& p
         return "Error: No se pudo escribir el inodo.";
     }
     
-    // PASO 4: Agregar entrada de la nueva carpeta en el directorio padre
+    // Agregar entrada de la nueva carpeta en el directorio padre
     bool added = false;
     for (int j = 0; j < 15 && parentInoData.i_block[j] != -1; j++) {
         BlockFolder folderBlock;
@@ -2847,7 +2861,7 @@ std::string CommandHandler::cmdMkfile(const std::map<std::string, std::string>& 
     fileIno.i_ctime = time(nullptr);
     fileIno.i_mtime = time(nullptr);
     fileIno.i_type = 1;  // 1 = archivo
-    std::strncpy(fileIno.i_perm, "664", 3);  // rw-rw-r--
+    std::strncpy(fileIno.i_perm, "664", 3);  
     
     for (int i = 0; i < 15; i++) {
         fileIno.i_block[i] = (i < blocksNeeded) ? fileBlocks[i] : -1;
@@ -3059,7 +3073,7 @@ std::string CommandHandler::cmdRep(const std::map<std::string, std::string>& par
     // Delegar a ReportGenerator
     ReportGenerator generator;
     
-    // Mapear parámetros: si viene -path_file_ls, usar como -ruta para ReportGenerator
+    // Mapear parámetros
     std::map<std::string, std::string> repParams = params;
     if (repParams.count("path_file_ls") && !repParams.count("ruta")) {
         repParams["ruta"] = repParams["path_file_ls"];
@@ -3081,7 +3095,7 @@ int CommandHandler::findInodeInDirectory(const std::string& diskPath, int partSt
         return -1;
     }
     
-    // Iterar por todos los bloques del directorio (ahora soporta múltiples bloques)
+    // Iterar por todos los bloques del directorio
     for (int i = 0; i < 15 && parentIno.i_block[i] != -1; i++) {
         BlockFolder dirBlock;
         if (!DiskManager::readBlock(diskPath, partStart, parentIno.i_block[i], 
@@ -3189,7 +3203,6 @@ bool CommandHandler::createParentDirs(const std::string& diskPath, int partStart
             current += c;
         }
     }
-    // Si path termina con /, no hay nada más por agregar
     if (!current.empty()) {
         parts.push_back(current);
     }
@@ -3281,7 +3294,7 @@ bool CommandHandler::createParentDirs(const std::string& diskPath, int partStart
             return false;
         }
         
-        // Agregar entrada en el directorio padre, expandiendo si hace falta
+        // Agregar entrada en el directorio padre
         bool added = false;
         int parentStartSlot = (currentInode == 0) ? 0 : 2;
         for (int j = 0; j < 15 && parentDirIno.i_block[j] != -1; j++) {
@@ -3404,7 +3417,7 @@ std::string CommandHandler::validateAllowedParams(const std::map<std::string, st
 bool CommandHandler::hasWritePermission(const Inodo& ino, int uid, int gid) {
     // Revisar si el usuario tiene permiso de escritura
     if (uid == ino.i_uid) {
-        // Usuario es el dueño, revisar bits de usuario (bit 1 = write)
+        // Usuario es el dueño, revisar bits de usuario 
         return (ino.i_perm[0] & 2) != 0;
     } else if (gid == ino.i_gid) {
         // Usuario está en el grupo, revisar bits de grupo
@@ -3418,7 +3431,7 @@ bool CommandHandler::hasWritePermission(const Inodo& ino, int uid, int gid) {
 bool CommandHandler::hasReadPermission(const Inodo& ino, int uid, int gid) {
     // Revisar si el usuario tiene permiso de lectura
     if (uid == ino.i_uid) {
-        // Usuario es el dueño, revisar bits de usuario (bit 4 = read)
+        // Usuario es el dueño, revisar bits de usuario 
         return (ino.i_perm[0] & 4) != 0;
     } else if (gid == ino.i_gid) {
         // Usuario está en el grupo, revisar bits de grupo
@@ -3441,7 +3454,7 @@ bool CommandHandler::removeRecursive(const std::string& diskPath, int partStart,
         return false;
     }
 
-    // Si es directorio, destruir primero su contenido (excepto . y ..)
+    // Si es directorio, destruir primero su contenido 
     if (ino.i_type == 0) {
         std::vector<int> childInodes;
 
@@ -3482,7 +3495,7 @@ bool CommandHandler::removeRecursive(const std::string& diskPath, int partStart,
         return false;
     }
 
-    // Liberar inodo en bitmap (actualiza contador y superblock)
+    // Liberar inodo en bitmap 
     if (!DiskManager::deallocateInode(diskPath, partStart, inodeNum, sb)) {
         return false;
     }
@@ -3532,7 +3545,7 @@ std::string CommandHandler::cmdRemove(const std::map<std::string, std::string>& 
         return "Error: No se puede eliminar el directorio raíz.";
     }
     
-    // Encontrar la última "/" para obtener el padre
+    // obtener el padre
     size_t lastSlash = path.find_last_of('/');
     std::string parentPath = (lastSlash == 0) ? "/" : path.substr(0, lastSlash);
     std::string targetName = path.substr(lastSlash + 1);
@@ -3680,7 +3693,7 @@ std::string CommandHandler::cmdRename(const std::map<std::string, std::string>& 
         return "Error: No se puede renombrar el directorio raíz.";
     }
     
-    // Encontrar la última "/" para obtener el padre
+    //  para obtener el padre
     size_t lastSlash = path.find_last_of('/');
     std::string parentPath = (lastSlash == 0) ? "/" : path.substr(0, lastSlash);
     std::string oldName = normalizeFsName(path.substr(lastSlash + 1));
@@ -3694,8 +3707,7 @@ std::string CommandHandler::cmdRename(const std::map<std::string, std::string>& 
         return "Error: El directorio padre no existe.";
     }
     
-    // Verificar permisos de escritura sobre el archivo/directorio a renombrar
-    // Primero encontramos el inodo actual
+    // Verificar permisos de escritura 
     Inodo targetIno;
     int targetInodeNum = -1;
     int targetBlockIdx = -1;
@@ -3804,13 +3816,11 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
         return false;
     }
     
-    // Truncar el nombre de forma segura
     std::string safeName = srcName;
     if (safeName.length() > 11) safeName = safeName.substr(0, 11);
     
     if (srcIno.i_type == 1) {
         Inodo newIno;
-        // --- FIX 1: LIMPIAR MEMORIA BASURA ---
         for(int i = 0; i < 15; i++) newIno.i_block[i] = -1;
         
         newIno.i_uid = uid;
@@ -3890,7 +3900,6 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
     
     if (srcIno.i_type == 0) {
         Inodo newDirIno;
-        // --- FIX 2: LIMPIAR MEMORIA BASURA ---
         for(int i = 0; i < 15; i++) newDirIno.i_block[i] = -1;
         
         newDirIno.i_uid = uid;
@@ -3967,7 +3976,6 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
             for (int j = 0; j < 4; j++) {
                 if (blockData.b_content[j].b_inodo > 0) { // Mayor a 0 para ignorar -1 y la raiz(0)
                     
-                    // --- FIX 3: LECTURA SEGURA DEL NOMBRE ---
                     char safeChildName[13] = {0};
                     std::strncpy(safeChildName, blockData.b_content[j].b_name, 12);
                     std::string childNameStr(safeChildName);
@@ -3998,7 +4006,6 @@ std::string CommandHandler::cmdCopy(const std::map<std::string, std::string>& pa
     std::string srcPath = CommandParser::getParameter(params, "path");
     std::string destPath = CommandParser::getParameter(params, "destino");
     
-    // CORRECCIÓN: Usar la partición activa de la sesión
     if (mountedPartitions.find(currentPartitionId) == mountedPartitions.end()) {
         return "Error: La partición de la sesión actual no está montada.";
     }
@@ -4096,7 +4103,6 @@ std::string CommandHandler::cmdMove(const std::map<std::string, std::string>& pa
     std::string parentPath = (lastSlash == 0) ? "/" : srcPath.substr(0, lastSlash);
     std::string fileName = srcPath.substr(lastSlash + 1);
     
-    // Truncar el nombre a 11 para poder buscarlo y guardarlo
     std::string safeName = fileName;
     if (safeName.length() > 11) safeName = safeName.substr(0, 11);
     
@@ -4110,7 +4116,7 @@ std::string CommandHandler::cmdMove(const std::map<std::string, std::string>& pa
         if (!DiskManager::readBlock(diskPath, partStart, parentIno.i_block[i], (char*)&blockData, sizeof(BlockFolder))) continue;
         
         for (int j = 0; j < 4; j++) {
-            // Validar contra el nombre truncado (safeName)
+            // Validar contra el nombre truncado 
             if (blockData.b_content[j].b_inodo == srcInodeNum && 
                 std::string(blockData.b_content[j].b_name) == safeName) {
                 
@@ -4150,7 +4156,6 @@ std::string CommandHandler::cmdMove(const std::map<std::string, std::string>& pa
                 }
             }
         } else if (!addedToDest) {
-            // CORRECCIÓN: ¡El destino está lleno! Pedimos un bloque nuevo para expandirlo
             int newBlockNum = DiskManager::allocateBlock(diskPath, partStart, sb);
             if (newBlockNum < 0) return "Error: No hay bloques disponibles para expandir el destino.";
             
@@ -4217,7 +4222,6 @@ bool CommandHandler::matchPattern(const std::string& name, const std::string& pa
         }
     }
     
-    // Consumir * restantes al final del patrón
     while (pIdx < pLen && pattern[pIdx] == '*') {
         pIdx++;
     }
@@ -4377,7 +4381,7 @@ bool CommandHandler::chownRecursive(const std::string& diskPath, int partStart, 
         return false;
     }
     
-    // Verificar permisos: solo root o el propietario puede hacer chown
+    // Verificar permisos
     if (!isRoot && ino.i_uid != currentUid) {
         return false;
     }
@@ -4468,14 +4472,13 @@ std::string CommandHandler::cmdChown(const std::map<std::string, std::string>& p
         return "Error: La ruta '" + path + "' no existe.";
     }
     
-    // Verificar permisos: solo root o el propietario puede hacer chown
+    // Verificar permisos
     bool isRoot = (currentUserUid == 0);
     if (!isRoot && targetIno.i_uid != currentUserUid) {
         return "Error: Permiso denegado. Solo el propietario o root puede cambiar el propietario.";
     }
     
     // Obtener el UID del nuevo usuario
-    // Para esto, buscamos en el archivo users.txt
     int newUid = -1;
     
     // Obtener raíz
@@ -4527,7 +4530,6 @@ std::string CommandHandler::cmdChown(const std::map<std::string, std::string>& p
     }
     
     // Parsear users.txt para buscar el UID del nuevo usuario
-    // Formato esperado: usuario:uid o similar
     std::istringstream iss(usersContent);
     std::string line;
     
@@ -4859,7 +4861,6 @@ int CommandHandler::getInodeFromPathPublic(const std::string& diskPath, int part
         type = resultIno.i_type;
         return 0; // El Inodo raíz SIEMPRE es el 0
     }
-    // ----------------------------------------
 
     int currentInode = 0;
     Inodo currentInoData;
@@ -4897,7 +4898,6 @@ std::string CommandHandler::getDirectoryJSON(const std::string& diskPath, const 
     int partStart = -1;
     for (int i = 0; i < 4; i++) {
         if (mbr.mbr_partitions[i].part_s > 0) {
-            // Limpieza segura del nombre de la partición (IGUAL QUE ANTES)
             char safeName[17] = {0};
             std::strncpy(safeName, mbr.mbr_partitions[i].part_name, 16);
             std::string pName(safeName);
@@ -5051,7 +5051,7 @@ std::string CommandHandler::getFileContentJSON(const std::string& diskPath, cons
         if (c == '"') cleanJsonContent += "\\\"";
         else if (c == '\n') cleanJsonContent += "\\n";
         else if (c == '\\') cleanJsonContent += "\\\\";
-        else if (c >= 32 && c <= 126) cleanJsonContent += c; // Solo ASCII imprimible
+        else if (c >= 32 && c <= 126) cleanJsonContent += c; 
     }
 
     std::cout << "=== FIN DEBUG FILE ===\n" << std::endl;

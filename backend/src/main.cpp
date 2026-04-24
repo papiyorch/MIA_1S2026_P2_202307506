@@ -12,17 +12,17 @@
 
 namespace fs = std::filesystem;
 
-// --- FUNCIONES DE APOYO PARA EL VISUALIZADOR ---
+const std::string BASE_PATH = "/home/ubuntu/Calificacion_MIA/Discos";
 
 std::string getDisksJSON() {
     std::string json = "[";
     bool first = true;
-    std::string path = "/tmp"; 
-
+    
+    // Usamos la constante en lugar de "/tmp"
     try {
-        if (fs::exists(path)) {
+        if (fs::exists(BASE_PATH)) {
             auto options = fs::directory_options::skip_permission_denied;
-            for (const auto& entry : fs::directory_iterator(path, options)) {
+            for (const auto& entry : fs::directory_iterator(BASE_PATH, options)) {
                 try {
                     if (entry.is_regular_file() && entry.path().extension() == ".mia") {
                         if (!first) json += ",";
@@ -45,7 +45,7 @@ std::string getPartitionsJSON(std::string diskName) {
     std::string json = "[";
     bool first = true;
     
-    std::string fullPath = "/tmp/" + diskName;
+    std::string fullPath = BASE_PATH + "/" + diskName;
 
     std::cout << "\n=== DEBUG: Buscando particiones en: " << fullPath << " ===" << std::endl;
 
@@ -180,12 +180,10 @@ int startServer() {
             std::string p = getParam("partition");
             std::string path = getParam("path");
 
-            std::string body = handler.getDirectoryJSON("/tmp/" + d, p, path);
+            // Usamos la constante en lugar de "/tmp/"
+            std::string body = handler.getDirectoryJSON(BASE_PATH + "/" + d, p, path);
             response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\n\r\n" + body;
         }
-        // ==========================================
-        // NUEVO ENDPOINT: LEER CONTENIDO DE ARCHIVO
-        // ==========================================
         else if (request.find("GET /api/file") != std::string::npos) {
             auto getParam = [&](std::string p) {
                 size_t pos = request.find(p + "=");
@@ -198,12 +196,11 @@ int startServer() {
             std::string p = getParam("partition");
             std::string path = getParam("path");
 
-            // Llama a la función que debes tener en command_handler.cpp
-            std::string body = handler.getFileContentJSON("/tmp/" + d, p, path);
+            // Usamos la constante en lugar de "/tmp/"
+            std::string body = handler.getFileContentJSON(BASE_PATH + "/" + d, p, path);
             
             response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\n\r\n" + body;
         }
-        // ==========================================
         else if (request.find("OPTIONS") != std::string::npos) {
             response = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: POST, GET, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\n\r\n";
         }
