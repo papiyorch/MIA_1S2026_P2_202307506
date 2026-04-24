@@ -1,7 +1,7 @@
 # Makefile para ExtreamFS Backend
 
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -fPIC
+CXXFLAGS = -std=c++17 -Wall -Wextra -g -O0 -fPIC
 INCLUDE_DIR = include
 SRC_DIR = src
 BUILD_DIR = build
