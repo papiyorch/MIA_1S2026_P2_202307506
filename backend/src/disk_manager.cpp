@@ -465,12 +465,6 @@ bool DiskManager::clearJournal(const std::string& path, int partStart) {
 DiskManager::EXT2Layout DiskManager::calculateEXT2Layout(int partitionSize) {
     EXT2Layout layout;
     
-    // Fórmula EXT2 (original): tamaño_particion = sizeof(Superblock) + n + 3*n + n*sizeof(Inodo) + 3*n*sizeof(BlockFile)
-    // Despejando n:
-    // tamaño_particion - sizeof(Superblock) = n * (1 + 3 + sizeof(Inodo) + 3*sizeof(BlockFile))
-    // n = (tamaño_particion - sizeof(Superblock)) / (4 + sizeof(Inodo) + 3*sizeof(BlockFile))
-    // numero_estructuras = floor(n)
-    
     int superblock_size = sizeof(Superblock);
     int inodo_size = sizeof(Inodo);
     int block_size = sizeof(BlockFile);
@@ -479,7 +473,6 @@ DiskManager::EXT2Layout DiskManager::calculateEXT2Layout(int partitionSize) {
     int available_space = partitionSize - superblock_size;
     
     // Calcular el denominador para despejar n
-    // denominator = 0.5 (para los bitmaps n/8 + 3n/8 = 4n/8 = n/2) + sizeof(Inodo) + 3*sizeof(BlockFile)
     double denominator = 0.5 + (double)inodo_size + 3.0 * (double)block_size;
     
     // Calcular n (número de inodos)
@@ -494,7 +487,7 @@ DiskManager::EXT2Layout DiskManager::calculateEXT2Layout(int partitionSize) {
     // Número de bloques es el triple
     layout.num_blocks = layout.num_inodes * 3;
     
-    // Calcular offsets (relativos al inicio de la partición)
+    // Calcular offsets 
     layout.inode_bitmap_start = superblock_size;
     layout.block_bitmap_start = layout.inode_bitmap_start + (layout.num_inodes / 8) + 1;
     layout.inode_table_start = layout.block_bitmap_start + (layout.num_blocks / 8) + 1;
@@ -507,12 +500,6 @@ DiskManager::EXT2Layout DiskManager::calculateEXT2Layout(int partitionSize) {
 DiskManager::EXT3Layout DiskManager::calculateEXT3Layout(int partitionSize) {
     EXT3Layout layout;
     
-    // Fórmula EXT3: tamaño_particion = sizeof(Superblock) + n*sizeof(Journal) + n + 3*n + n*sizeof(Inodo) + 3*n*sizeof(BlockFile)
-    // Despejando n:
-    // tamaño_particion - sizeof(Superblock) = n * (sizeof(Journal) + 1 + 3 + sizeof(Inodo) + 3*sizeof(BlockFile))
-    // n = (tamaño_particion - sizeof(Superblock)) / (sizeof(Journal) + 4 + sizeof(Inodo) + 3*sizeof(BlockFile))
-    // numero_estructuras = floor(n)
-    
     int superblock_size = sizeof(Superblock);
     int journal_size = sizeof(Journal);
     int inodo_size = sizeof(Inodo);
@@ -521,14 +508,6 @@ DiskManager::EXT3Layout DiskManager::calculateEXT3Layout(int partitionSize) {
     // Calcular espacio disponible después del superblock
     int available_space = partitionSize - superblock_size;
     
-    // Calcular el denominador para despejar n
-    // denominator = sizeof(Journal) + (n bits para inodos)/8 + (3n bits para bloques)/8 + n*sizeof(Inodo) + 3*n*sizeof(BlockFile)
-    // Simplificando: = sizeof(Journal) + n/8 + 3n/8 + n*sizeof(Inodo) + 3*n*sizeof(BlockFile)
-    // = sizeof(Journal) + 4n/8 + n*sizeof(Inodo) + 3*n*sizeof(BlockFile)
-    // = sizeof(Journal) + n/2 + n*sizeof(Inodo) + 3*n*sizeof(BlockFile)
-    // = sizeof(Journal) + n*(0.5 + sizeof(Inodo) + 3*sizeof(BlockFile))
-    
-    // Por lo tanto: n = available_space / (sizeof(Journal) + 0.5 + sizeof(Inodo) + 3*sizeof(BlockFile))
     
     double denominator = (double)journal_size + 0.5 + (double)inodo_size + 3.0 * (double)block_size;
     

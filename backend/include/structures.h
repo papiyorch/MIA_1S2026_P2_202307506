@@ -56,7 +56,7 @@ typedef struct {
     int s_bm_block_start;
     int s_inode_start;
     int s_block_start;
-    int s_journal_start;        // EXT3 only: ubicación del bloque de journal
+    int s_journal_start;        // EXT3
 } Superblock;
 
 // Inodo

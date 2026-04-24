@@ -1,0 +1,118 @@
+.command-input {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.input-header {
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--primary);
+}
+
+.input-header h2 {
+  color: var(--primary);
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.command-textarea {
+  flex: 1;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 0.95rem;
+  resize: none;
+  color: var(--text);
+  background: #fafafa;
+  transition: all 0.2s;
+}
+
+.command-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background: white;
+}
+
+.command-textarea:disabled {
+  background: var(--light);
+  color: var(--text-light);
+  cursor: not-allowed;
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-file {
+  flex: 1;
+  background: var(--secondary);
+  color: white;
+  border: 2px solid transparent;
+}
+
+.btn-file:hover:not(:disabled) {
+  background: #059669;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+}
+
+.btn-file:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-execute {
+  flex: 1;
+  background: var(--primary);
+  color: white;
+  border: 2px solid transparent;
+}
+
+.btn-execute:hover:not(:disabled) {
+  background: #1e40af;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  transform: translateY(-2px);
+}
+
+.btn-execute:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .command-input {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+  }
+}
