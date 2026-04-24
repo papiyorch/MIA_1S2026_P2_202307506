@@ -380,8 +380,9 @@ std::string CommandHandler::cmdFdisk(const std::map<std::string, std::string>& p
         newPart.part_start = startPos;
         newPart.part_s = size;
         newPart.part_correlative = -1;
-        std::strcpy(newPart.part_name, name.c_str());
-        std::strcpy(newPart.part_id, "");
+        std::memset(newPart.part_name, 0, 16);
+        std::strncpy(newPart.part_name, name.c_str(), 15);
+        std::memset(newPart.part_id, 0, 16);
         
         mbr.mbr_partitions[freeSlot] = newPart;
         
@@ -397,7 +398,7 @@ std::string CommandHandler::cmdFdisk(const std::map<std::string, std::string>& p
             ebr.part_start = -1;
             ebr.part_s = 0;
             ebr.part_next = -1;
-            std::strcpy(ebr.part_name, "");
+            std::memset(ebr.part_name, 0, 16);
             
             if (!DiskManager::writeToDisk(path, newPart.part_start, (char*)&ebr, sizeof(EBR))) {
                 return "Error: No se pudo crear EBR inicial para partición extendida.";
@@ -465,7 +466,8 @@ std::string CommandHandler::cmdFdisk(const std::map<std::string, std::string>& p
         newLogicalEBR.part_start = logicalPartStart;
         newLogicalEBR.part_s = size;
         newLogicalEBR.part_next = -1;
-        std::strcpy(newLogicalEBR.part_name, name.c_str());
+        std::memset(newLogicalEBR.part_name, 0, 16);
+        std::strncpy(newLogicalEBR.part_name, name.c_str(), 15);
         
         // Actualizar el último EBR para apuntar al nuevo
         if (ebrCount > 0 && lastEBRPosition != extPart.part_start) {
@@ -574,8 +576,8 @@ std::string CommandHandler::cmdFdiskDelete(const std::string& path, const std::s
     partToDelete.part_start = -1;
     partToDelete.part_s = 0;
     partToDelete.part_correlative = -1;
-    std::strcpy(partToDelete.part_name, "");
-    std::strcpy(partToDelete.part_id, "");
+    std::memset(partToDelete.part_name, 0, 16);
+    std::memset(partToDelete.part_id, 0, 16);
     
     // Escribir MBR actualizado
     if (!DiskManager::writeMBR(path, mbr)) {

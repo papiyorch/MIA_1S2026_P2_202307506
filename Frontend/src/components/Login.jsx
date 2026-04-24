@@ -19,7 +19,7 @@ export default function Login({ onLoginSuccess, onCancel }) {
 
     try {
       // Login al endpoint
-      const response = await fetch('http://localhost:8000/execute', {
+      const response = await fetch('http://3.90.156.64:8000', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ commands: `login -user=${username} -pass=${password} -id=${partId}` })
