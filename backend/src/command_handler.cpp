@@ -3810,6 +3810,9 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
     
     if (srcIno.i_type == 1) {
         Inodo newIno;
+        // --- FIX 1: LIMPIAR MEMORIA BASURA ---
+        for(int i = 0; i < 15; i++) newIno.i_block[i] = -1;
+        
         newIno.i_uid = uid;
         newIno.i_gid = gid;
         newIno.i_type = 1;
@@ -3817,7 +3820,6 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
         std::strncpy(newIno.i_perm, "644", 3);
         newIno.i_ctime = time(nullptr);
         
-        // Asignar bloques y copiar contenido
         int blockCount = (srcIno.i_s + 63) / 64;
         for (int i = 0; i < blockCount && i < 12; i++) {
             if (srcIno.i_block[i] >= 0) {
@@ -3835,13 +3837,11 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
             }
         }
         
-        // Usar Bitmap para pedir Inodo
         int newInodeNum = DiskManager::allocateInode(diskPath, partStart, sb);
         if (newInodeNum < 0) return false;
         
         if (!DiskManager::writeInodo(diskPath, partStart, newInodeNum, newIno)) return false;
         
-        // Agregar entrada al directorio destino con LÓGICA DE EXPANSIÓN
         Inodo destIno;
         if (!DiskManager::readInodo(diskPath, partStart, destInodeNum, destIno)) return false;
         
@@ -3852,7 +3852,8 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
                 if (!DiskManager::readBlock(diskPath, partStart, destIno.i_block[i], (char*)&blockData, sizeof(BlockFolder))) continue;
                 
                 for (int j = 0; j < 4; j++) {
-                    if (blockData.b_content[j].b_inodo == 0) { // 0 es espacio libre
+                    // Validar si el slot es libre (usualmente <= 0 o vacío)
+                    if (blockData.b_content[j].b_inodo <= 0) { 
                         blockData.b_content[j].b_inodo = newInodeNum;
                         std::memset(blockData.b_content[j].b_name, 0, 12);
                         std::strncpy(blockData.b_content[j].b_name, safeName.c_str(), 11);
@@ -3862,12 +3863,14 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
                     }
                 }
             } else if (!added) {
-                // EXPANDIR DIRECTORIO DESTINO
                 int newDirBlock = DiskManager::allocateBlock(diskPath, partStart, sb);
                 destIno.i_block[i] = newDirBlock;
                 
                 BlockFolder newBlockData;
                 std::memset(&newBlockData, 0, sizeof(BlockFolder));
+                // Llenar todo con -1 para indicar vacío
+                for(int k=0; k<4; k++) newBlockData.b_content[k].b_inodo = -1;
+                
                 newBlockData.b_content[0].b_inodo = newInodeNum;
                 std::strncpy(newBlockData.b_content[0].b_name, safeName.c_str(), 11);
                 
@@ -3887,10 +3890,13 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
     
     if (srcIno.i_type == 0) {
         Inodo newDirIno;
+        // --- FIX 2: LIMPIAR MEMORIA BASURA ---
+        for(int i = 0; i < 15; i++) newDirIno.i_block[i] = -1;
+        
         newDirIno.i_uid = uid;
         newDirIno.i_gid = gid;
         newDirIno.i_type = 0;
-        newDirIno.i_s = 0; // Se incrementará al agregar hijos
+        newDirIno.i_s = 0; 
         std::strncpy(newDirIno.i_perm, "755", 3);
         newDirIno.i_ctime = time(nullptr);
         
@@ -3903,16 +3909,16 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
         
         if (!DiskManager::writeInodo(diskPath, partStart, newDirInodeNum, newDirIno)) return false;
         
-        // Inicializar carpeta con . y .. (Muy importante para EXT2/3)
         BlockFolder emptyBlock;
         std::memset(&emptyBlock, 0, sizeof(BlockFolder));
+        for(int k=0; k<4; k++) emptyBlock.b_content[k].b_inodo = -1; // -1 es vacío
+        
         emptyBlock.b_content[0].b_inodo = newDirInodeNum;
         std::strcpy(emptyBlock.b_content[0].b_name, ".");
         emptyBlock.b_content[1].b_inodo = destInodeNum;
         std::strcpy(emptyBlock.b_content[1].b_name, "..");
         DiskManager::writeBlock(diskPath, partStart, newBlockNum, (char*)&emptyBlock, sizeof(BlockFolder));
         
-        // Agregar esta nueva carpeta al padre destino
         Inodo destIno;
         if (!DiskManager::readInodo(diskPath, partStart, destInodeNum, destIno)) return false;
         
@@ -3923,7 +3929,7 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
                 if (!DiskManager::readBlock(diskPath, partStart, destIno.i_block[i], (char*)&blockData, sizeof(BlockFolder))) continue;
                 
                 for (int j = 0; j < 4; j++) {
-                    if (blockData.b_content[j].b_inodo == 0) {
+                    if (blockData.b_content[j].b_inodo <= 0) {
                         blockData.b_content[j].b_inodo = newDirInodeNum;
                         std::memset(blockData.b_content[j].b_name, 0, 12);
                         std::strncpy(blockData.b_content[j].b_name, safeName.c_str(), 11);
@@ -3933,12 +3939,13 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
                     }
                 }
             } else if (!added) {
-                // EXPANDIR PADRE
                 int parentNewBlock = DiskManager::allocateBlock(diskPath, partStart, sb);
                 destIno.i_block[i] = parentNewBlock;
                 
                 BlockFolder parentBlockData;
                 std::memset(&parentBlockData, 0, sizeof(BlockFolder));
+                for(int k=0; k<4; k++) parentBlockData.b_content[k].b_inodo = -1;
+                
                 parentBlockData.b_content[0].b_inodo = newDirInodeNum;
                 std::strncpy(parentBlockData.b_content[0].b_name, safeName.c_str(), 11);
                 
@@ -3953,23 +3960,26 @@ bool CommandHandler::copyRecursive(const std::string& diskPath, int partStart, i
         destIno.i_s++;
         DiskManager::writeInodo(diskPath, partStart, destInodeNum, destIno);
         
-        // Copiar contenido del directorio fuente
         for (int i = 0; i < 12 && srcIno.i_block[i] >= 0; i++) {
             BlockFolder blockData;
             if (!DiskManager::readBlock(diskPath, partStart, srcIno.i_block[i], (char*)&blockData, sizeof(BlockFolder))) continue;
             
             for (int j = 0; j < 4; j++) {
-                if (blockData.b_content[j].b_inodo > 0 && 
-                    std::string(blockData.b_content[j].b_name) != "." &&
-                    std::string(blockData.b_content[j].b_name) != "..") {
+                if (blockData.b_content[j].b_inodo > 0) { // Mayor a 0 para ignorar -1 y la raiz(0)
                     
-                    Inodo childIno;
-                    if (!DiskManager::readInodo(diskPath, partStart, blockData.b_content[j].b_inodo, childIno)) continue;
-                    if (!hasReadPermission(childIno, uid, gid)) continue;
-                    
-                    // LLamada recursiva
-                    copyRecursive(diskPath, partStart, blockData.b_content[j].b_inodo, newDirInodeNum,
-                                     std::string(blockData.b_content[j].b_name), uid, gid, sb);
+                    // --- FIX 3: LECTURA SEGURA DEL NOMBRE ---
+                    char safeChildName[13] = {0};
+                    std::strncpy(safeChildName, blockData.b_content[j].b_name, 12);
+                    std::string childNameStr(safeChildName);
+
+                    if (childNameStr != "." && childNameStr != "..") {
+                        Inodo childIno;
+                        if (!DiskManager::readInodo(diskPath, partStart, blockData.b_content[j].b_inodo, childIno)) continue;
+                        if (!hasReadPermission(childIno, uid, gid)) continue;
+                        
+                        copyRecursive(diskPath, partStart, blockData.b_content[j].b_inodo, newDirInodeNum,
+                                      childNameStr, uid, gid, sb);
+                    }
                 }
             }
         }
@@ -4286,6 +4296,13 @@ std::string CommandHandler::cmdFind(const std::map<std::string, std::string>& pa
     
     std::string searchPath = CommandParser::getParameter(params, "path");
     std::string pattern = CommandParser::getParameter(params, "name");
+
+    searchPath.erase(std::remove(searchPath.begin(), searchPath.end(), '\"'), searchPath.end());
+    searchPath.erase(std::remove(searchPath.begin(), searchPath.end(), '\\'), searchPath.end());
+    
+    pattern.erase(std::remove(pattern.begin(), pattern.end(), '\"'), pattern.end());
+    pattern.erase(std::remove(pattern.begin(), pattern.end(), '\\'), pattern.end());
+
     auto normalizeFsName = [](const std::string& value) {
         return value.size() > 11 ? value.substr(0, 11) : value;
     };
@@ -4822,4 +4839,221 @@ std::string CommandHandler::cmdJournaling(const std::map<std::string, std::strin
     }
     
     return result;
+}
+
+int CommandHandler::getInodeFromPathPublic(const std::string& diskPath, int partStart, const std::string& path, Inodo& resultIno, char& type) {
+    std::vector<std::string> parts;
+    std::string current = "";
+    for (char c : path) {
+        if (c == '/') {
+            if (!current.empty()) { parts.push_back(current); current = ""; }
+        } else { current += c; }
+    }
+    if (!current.empty()) parts.push_back(current);
+
+    Superblock sb;
+    if (!DiskManager::readSuperblock(diskPath, partStart, sb)) return -1;
+    
+    if (parts.empty()) {
+        if (!DiskManager::readInodo(diskPath, partStart, 0, resultIno)) return -1;
+        type = resultIno.i_type;
+        return 0; // El Inodo raíz SIEMPRE es el 0
+    }
+    // ----------------------------------------
+
+    int currentInode = 0;
+    Inodo currentInoData;
+    
+    for (size_t i = 0; i < parts.size(); i++) {
+        if (!DiskManager::readInodo(diskPath, partStart, currentInode, currentInoData)) return -1;
+        if (currentInoData.i_type == '1' || currentInoData.i_type == 1) return -1;
+        
+        int nextInode = findInodeInDirectory(diskPath, partStart, currentInode, parts[i], currentInoData);
+        if (nextInode < 0) return -1;
+        currentInode = nextInode;
+        
+        if (i == parts.size() - 1) {
+            if (!DiskManager::readInodo(diskPath, partStart, currentInode, resultIno)) return -1;
+            type = resultIno.i_type;
+            return currentInode;
+        }
+    }
+    return currentInode;
+}
+
+std::string CommandHandler::getDirectoryJSON(const std::string& diskPath, const std::string& partName, const std::string& path) {
+    std::cout << "\n=== DEBUG EXPLORE: Disco: " << diskPath << " | Part: " << partName << " | Path: " << path << " ===" << std::endl;
+    
+    FILE* file = fopen(diskPath.c_str(), "rb");
+    if (!file) {
+        std::cout << "DEBUG: Error abriendo el disco." << std::endl;
+        return "[]";
+    }
+    
+    MBR mbr;
+    fread(&mbr, sizeof(MBR), 1, file);
+    fclose(file);
+
+    int partStart = -1;
+    for (int i = 0; i < 4; i++) {
+        if (mbr.mbr_partitions[i].part_s > 0) {
+            // Limpieza segura del nombre de la partición (IGUAL QUE ANTES)
+            char safeName[17] = {0};
+            std::strncpy(safeName, mbr.mbr_partitions[i].part_name, 16);
+            std::string pName(safeName);
+            
+            if (pName == partName) {
+                partStart = mbr.mbr_partitions[i].part_start;
+                std::cout << "DEBUG: Particion encontrada. Inicio en bloque: " << partStart << std::endl;
+                break;
+            }
+        }
+    }
+
+    if (partStart == -1) {
+        std::cout << "DEBUG: ERROR. No se encontro la particion que coincida con '" << partName << "'" << std::endl;
+        return "[]";
+    }
+
+    Inodo folderIno;
+    char type;
+    // Llamamos a tu clon público
+    int targetInodeIdx = getInodeFromPathPublic(diskPath, partStart, path, folderIno, type);
+
+    if (targetInodeIdx < 0) {
+        std::cout << "DEBUG: ERROR. getInodeFromPathPublic retorno -1. La ruta o Inodo raiz no se encontro." << std::endl;
+        return "[]";
+    }
+
+    std::cout << "DEBUG: Inodo objetivo encontrado -> Index: " << targetInodeIdx << " | Tipo: " << type << std::endl;
+
+    if (type != '0' && type != 0) {
+        std::cout << "DEBUG: ERROR. El inodo encontrado no es una carpeta. (Tipo es: " << type << ")" << std::endl;
+        return "[]";
+    }
+
+    Superblock sb;
+    if (!DiskManager::readSuperblock(diskPath, partStart, sb)) {
+        return "[]";
+    }
+
+    std::string json = "[";
+    bool first = true;
+    file = fopen(diskPath.c_str(), "rb");
+    if (!file) return "[]";
+
+    for (int i = 0; i < 12; i++) { 
+        if (folderIno.i_block[i] != -1) {
+            BlockFolder bf;
+            fseek(file, sb.s_block_start + (folderIno.i_block[i] * sizeof(BlockFolder)), SEEK_SET);
+            fread(&bf, sizeof(BlockFolder), 1, file);
+            
+            for (int j = 0; j < 4; j++) {
+                // Verificamos inodo válido y que el nombre no esté en blanco
+                if (bf.b_content[j].b_inodo != -1 && bf.b_content[j].b_name[0] != '\0') {
+                    
+                    // Limpieza segura del nombre del archivo/carpeta
+                    char safeEntryName[13] = {0};
+                    std::strncpy(safeEntryName, bf.b_content[j].b_name, 12);
+                    std::string entryName(safeEntryName);
+                    
+                    if (entryName == "." || entryName == "..") continue;
+                    
+                    Inodo childIno;
+                    if (DiskManager::readInodo(diskPath, partStart, bf.b_content[j].b_inodo, childIno)) {
+                        if (!first) json += ",";
+                        
+                        // Determinamos el tipo
+                        std::string itemType = (childIno.i_type == '0' || childIno.i_type == 0) ? "folder" : "file";
+                                                
+                        json += "{\"name\":\"" + entryName + "\",\"type\":\"" + itemType + "\"}";
+                        first = false;
+                    }
+                }
+            }
+        }
+    }
+
+    json += "]";
+    fclose(file);
+    
+    return json;
+}
+
+std::string CommandHandler::getFileContentJSON(const std::string& diskPath, const std::string& partName, const std::string& path) {
+    std::cout << "\n=== DEBUG FILE: Buscando archivo en -> " << path << " ===" << std::endl;
+    FILE* file = fopen(diskPath.c_str(), "rb");
+    if (!file) return "{\"content\":\"Error: Disco no encontrado\"}";
+
+    MBR mbr;
+    fread(&mbr, sizeof(MBR), 1, file);
+    fclose(file);
+
+    int partStart = -1;
+    for (int i = 0; i < 4; i++) {
+        if (mbr.mbr_partitions[i].part_s > 0) {
+            char safeName[17] = {0};
+            std::strncpy(safeName, mbr.mbr_partitions[i].part_name, 16);
+            if (std::string(safeName) == partName) {
+                partStart = mbr.mbr_partitions[i].part_start;
+                break;
+            }
+        }
+    }
+
+    if (partStart == -1) return "{\"content\":\"Error: Particion no encontrada\"}";
+
+    Inodo fileIno;
+    char type;
+    int targetInodeIdx = getInodeFromPathPublic(diskPath, partStart, path, fileIno, type);
+
+    std::cout << "DEBUG FILE: getInodeFromPathPublic devolvio Index: " << targetInodeIdx << " | Tipo: " << type << " (" << (int)type << ")" << std::endl;
+
+    if (targetInodeIdx < 0) {
+        std::cout << "DEBUG FILE: Falla. No se encontro el inodo en la ruta." << std::endl;
+        return "{\"content\":\"Error: Archivo no encontrado en el sistema\"}";
+    }
+    
+    if (type == '0' || type == 0) {
+        std::cout << "DEBUG FILE: Falla. El inodo pertenece a una carpeta." << std::endl;
+        return "{\"content\":\"Error: La ruta apunta a una carpeta, no a un archivo\"}";
+    }
+
+    std::cout << "DEBUG FILE: Archivo valido encontrado. Extrayendo contenido..." << std::endl;
+
+    Superblock sb;
+    if (!DiskManager::readSuperblock(diskPath, partStart, sb)) return "{\"content\":\"Error leyendo SB\"}";
+
+    std::string textContent = "";
+    file = fopen(diskPath.c_str(), "rb");
+    if (file) {
+        for (int i = 0; i < 12; i++) {
+            if (fileIno.i_block[i] != -1) {
+                BlockFile bf;
+                fseek(file, sb.s_block_start + (fileIno.i_block[i] * sizeof(BlockFile)), SEEK_SET);
+                fread(&bf, sizeof(BlockFile), 1, file);
+                
+                for (int j = 0; j < 64; j++) {
+                    // Cuidado aqui: A veces los vacios son -1 en lugar de \0
+                    if (bf.b_content[j] != '\0' && bf.b_content[j] != -1 && bf.b_content[j] != (char)255) {
+                        textContent += bf.b_content[j];
+                    }
+                }
+            }
+        }
+        fclose(file);
+    }
+
+    std::cout << "DEBUG FILE: Contenido extraido -> [" << textContent << "]" << std::endl;
+
+    std::string cleanJsonContent = "";
+    for (char c : textContent) {
+        if (c == '"') cleanJsonContent += "\\\"";
+        else if (c == '\n') cleanJsonContent += "\\n";
+        else if (c == '\\') cleanJsonContent += "\\\\";
+        else if (c >= 32 && c <= 126) cleanJsonContent += c; // Solo ASCII imprimible
+    }
+
+    std::cout << "=== FIN DEBUG FILE ===\n" << std::endl;
+    return "{\"content\":\"" + cleanJsonContent + "\"}";
 }

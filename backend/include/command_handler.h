@@ -39,6 +39,10 @@ public:
     // Obtiene el ID de partición actual
     std::string getCurrentPartitionId() const;
 
+    std::string getDirectoryJSON(const std::string& diskPath, const std::string& partName, const std::string& path);
+    std::string getFileContentJSON(const std::string& diskPath, const std::string& partName, const std::string& path);
+    int getInodeFromPathPublic(const std::string& diskPath, int partStart, const std::string& path, Inodo& resultIno, char& type);
+
 private:
     // Comandos de disco
     std::string cmdMkdisk(const std::map<std::string, std::string>& params);
