@@ -25,7 +25,7 @@ export default function Visualizer() {
   const fetchDisks = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/disks'); 
+      const response = await fetch('http://3.90.156.64:8000/api/disks'); 
       if(response.ok) {
         const data = await response.json();
         setDisks(data);
@@ -47,7 +47,7 @@ export default function Visualizer() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/partitions?disk=${disk}`);
+      const response = await fetch(`http://3.90.156.64:8000/api/partitions?disk=${disk}`);
       if(response.ok) {
         const data = await response.json();
         setPartitions(data);
@@ -65,7 +65,7 @@ export default function Visualizer() {
   const loadDirectory = async (disk, partition, path) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/explore?disk=${disk}&partition=${partition}&path=${path}`);
+      const response = await fetch(`http://3.90.156.64:8000/api/explore?disk=${disk}&partition=${partition}&path=${path}`);
       if(response.ok) {
         const data = await response.json();
         setFiles(data);
@@ -116,7 +116,7 @@ export default function Visualizer() {
         const filePath = currentPath === '/' ? `/${file.name}` : `${currentPath}${file.name}`;
         
         // Archivo al endpoint
-        const response = await fetch(`http://localhost:8000/api/file?disk=${selectedDisk}&partition=${selectedPartition}&path=${filePath}`);
+        const response = await fetch(`http://3.90.156.64:8000/api/file?disk=${selectedDisk}&partition=${selectedPartition}&path=${filePath}`);
         
         if(response.ok) {
           const data = await response.json();

@@ -24,7 +24,7 @@ function App() {
     setOutput('Ejecutando comandos...')
 
     try {
-      const response = await fetch('http://localhost:8000/execute', {
+      const response = await fetch('http://3.90.156.64:8000/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ commands: commands })
@@ -52,7 +52,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:8000/execute', {
+      await fetch('http://3.90.156.64:8000/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ commands: 'logout' })
